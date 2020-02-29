@@ -4,6 +4,7 @@ from aimacode.planning import Action
 from aimacode.utils import expr
 
 from layers import BaseActionLayer, BaseLiteralLayer, makeNoOp, make_node
+import sys
 
 
 class ActionLayer(BaseActionLayer):
@@ -20,7 +21,20 @@ class ActionLayer(BaseActionLayer):
         layers.ActionNode
         """
         # TODO: implement this function
-        raise NotImplementedError
+
+    
+        if actionA.effects == False or \
+           actionB.effects == False or \
+           actionA.effects == actionB.effects: 
+
+           return False
+
+        negates = [e for e in actionA.effects if ~e in actionB.effects]
+        
+        #print('negates:', negates)
+
+        return bool(negates)
+
 
 
     def _interference(self, actionA, actionB):
@@ -35,7 +49,18 @@ class ActionLayer(BaseActionLayer):
         layers.ActionNode
         """
         # TODO: implement this function
-        raise NotImplementedError
+        
+        if actionA.effects == False or \
+           actionB.preconditions == False or \
+           actionA.effects == actionB.preconditions: 
+
+           return False
+
+        negates = [e for e in actionA.effects if ~e in actionB.preconditions]
+        
+        #print('negates:', negates)
+
+        return bool(negates)
 
     def _competing_needs(self, actionA, actionB):
         """ Return True if any preconditions of the two actions are pairwise mutex in the parent layer
@@ -50,7 +75,20 @@ class ActionLayer(BaseActionLayer):
         layers.BaseLayer.parent_layer
         """
         # TODO: implement this function
-        raise NotImplementedError
+
+        #print('_computing_needs:', 'actionA:', actionA, 'actionB:', actionB, 'pairwise_mutex:', pairwise_mutex )
+
+        if actionA.preconditions == False or \
+           actionB.preconditions == False or \
+           actionA.preconditions == actionB.preconditions: 
+
+           return False
+
+        mutex = [a for a in actionA.preconditions for b in actionB.preconditions if self.parent_layer.is_mutex(a,b)]
+        
+    
+
+        return bool(mutex)
 
 
 class LiteralLayer(BaseLiteralLayer):
@@ -67,12 +105,25 @@ class LiteralLayer(BaseLiteralLayer):
         layers.BaseLayer.parent_layer
         """
         # TODO: implement this function
-        raise NotImplementedError
+
+        ret = True
+        for a in self.parents[literalA]:
+            for b in self.parents[literalB]:
+                if self.parent_layer.is_mutex(a, b) == False:
+                    ret = False
+                    break
+            if ret == False:
+                break
+        return ret
+
 
     def _negation(self, literalA, literalB):
         """ Return True if two literals are negations of each other """
         # TODO: implement this function
-        raise NotImplementedError
+        
+        negation = literalA == ~literalB
+
+        return negation 
 
 
 class PlanningGraph:
@@ -136,7 +187,20 @@ class PlanningGraph:
         Russell-Norvig 10.3.1 (3rd Edition)
         """
         # TODO: implement this function
-        raise NotImplementedError
+        
+        costs_sum = 0
+
+        self.fill()
+
+        for goal in self.goal:
+           costs_sum += self.level_cost(goal)
+
+        return costs_sum
+
+    def level_cost(self, goal):
+        costs = [i for i in range(len(self.literal_layers)) for v in iter(self.literal_layers[i]) if v is goal]
+        return costs[0]
+
 
     def h_maxlevel(self):
         """ Calculate the max level heuristic for the planning graph
@@ -166,7 +230,16 @@ class PlanningGraph:
         WARNING: you should expect long runtimes using this heuristic with A*
         """
         # TODO: implement maxlevel heuristic
-        raise NotImplementedError
+        
+        costs = []
+
+        self.fill()
+
+        for goal in self.goal:
+            costs.append(self.level_cost(goal))
+
+        return max(costs)
+
 
     def h_setlevel(self):
         """ Calculate the set level heuristic for the planning graph
@@ -191,7 +264,30 @@ class PlanningGraph:
         WARNING: you should expect long runtimes using this heuristic on complex problems
         """
         # TODO: implement setlevel heuristic
-        raise NotImplementedError
+        
+
+        self.fill()
+
+        for index in range(len(self.literal_layers)):
+
+            layer = self.literal_layers[index]
+            all_goals_met = True
+
+            for goal in self.goal:
+                if goal not in iter(layer):
+                    all_goals_met = False
+            if all_goals_met == False: 
+                continue
+            
+            goals_are_mutex = False
+            for goalA in self.goal:
+                for goalB in self.goal:
+                    if layer.is_mutex(goalA, goalB):
+                        goals_are_mutex = True
+            if goals_are_mutex == False:
+                return index
+
+
 
     ##############################################################################
     #                     DO NOT MODIFY CODE BELOW THIS LINE                     #
